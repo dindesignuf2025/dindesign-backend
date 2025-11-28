@@ -5,6 +5,8 @@ const path = require('path');
 const fetch = require('node-fetch');
 require('dotenv').config();
 const app = express();
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.json({limit:'60mb'}));
 app.use('/uploads', express.static(path.join(__dirname,'uploads')));
 const PORT = process.env.PORT || 4000;
