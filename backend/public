@@ -1,1 +1,155 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>DinDesign Ultra Pro Designer</title>
+<style>
+  body { font-family:sans-serif; padding:20px; background:#f4f4f4; }
+  #canvas { border:1px solid #ccc; background:white; cursor:crosshair; }
+  #controls { margin-top:10px; display:flex; flex-wrap:wrap; gap:10px; }
+  input, select, button { padding:6px; }
+  button { background:#ff6600; color:white; border:none; cursor:pointer; border-radius:5px; }
+  .layer { margin:5px 0; }
+</style>
+</head>
+<body>
+<h1>Ultra Pro Designer</h1>
+<canvas id="canvas" width="600" height="600"></canvas>
+
+<div id="controls">
+  <div class="layer">
+    <input type="file" id="imgUpload" />
+  </div>
+  <div class="layer">
+    <input type="text" id="textInput" placeholder="Skriv text här" />
+    <select id="fontSelect">
+      <option value="sans-serif">Sans-serif</option>
+      <option value="serif">Serif</option>
+      <option value="monospace">Monospace</option>
+    </select>
+    <input type="color" id="colorInput" value="#000000"/>
+    <button id="addTextBtn">Lägg till text</button>
+  </div>
+  <button id="saveBtn">Spara & Ladda upp design</button>
+</div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const imgUpload = document.getElementById("imgUpload");
+const textInput = document.getElementById("textInput");
+const addTextBtn = document.getElementById("addTextBtn");
+const fontSelect = document.getElementById("fontSelect");
+const colorInput = document.getElementById("colorInput");
+const saveBtn = document.getElementById("saveBtn");
+
+let layers = [];
+let selectedLayer = null;
+let offsetX=0, offsetY=0;
+
+// Rita canvas
+function drawCanvas() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="white"; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  layers.forEach(layer => {
+    if(layer.type==="image" && layer.img) {
+      ctx.drawImage(layer.img, layer.x, layer.y, layer.width, layer.height);
+    }
+    if(layer.type==="text") {
+      ctx.font = layer.size+"px "+layer.font;
+      ctx.fillStyle = layer.color;
+      ctx.fillText(layer.text, layer.x, layer.y);
+    }
+  });
+}
+
+function hitTest(x,y){
+  for(let i=layers.length-1;i>=0;i--){
+    const l = layers[i];
+    if(l.type==="image" && l.img){
+      if(x>=l.x && x<=l.x+l.width && y>=l.y && y<=l.y+l.height) return l;
+    }
+    if(l.type==="text"){
+      ctx.font = l.size+"px "+l.font;
+      const w = ctx.measureText(l.text).width;
+      const h = l.size;
+      if(x>=l.x && x<=l.x+w && y>=l.y && y<=l.y+h) return l;
+    }
+  }
+  return null;
+}
+
+// Dragging
+canvas.addEventListener("mousedown", e=>{
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  selectedLayer = hitTest(x,y);
+  if(selectedLayer){
+    offsetX = x - selectedLayer.x;
+    offsetY = y - selectedLayer.y;
+  }
+});
+
+canvas.addEventListener("mousemove", e=>{
+  if(selectedLayer){
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    selectedLayer.x = x - offsetX;
+    selectedLayer.y = y - offsetY;
+    drawCanvas();
+  }
+});
+
+canvas.addEventListener("mouseup", ()=>{ selectedLayer=null; });
+canvas.addEventListener("mouseleave", ()=>{ selectedLayer=null; });
+
+// Lägg till bild
+imgUpload.addEventListener("change", e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.src = reader.result;
+    img.onload = () => {
+      layers.push({type:"image", img, x:50, y:50, width:200, height:200});
+      drawCanvas();
+    };
+  };
+  reader.readAsDataURL(file);
+});
+
+// Lägg till text
+addTextBtn.addEventListener("click", ()=>{
+  const text = textInput.value.trim();
+  if(!text) return;
+  layers.push({type:"text", text, x:50, y:50, size:36, font:fontSelect.value, color:colorInput.value});
+  drawCanvas();
+});
+
+// Spara och ladda upp
+saveBtn.addEventListener("click", async ()=>{
+  const dataUrl = canvas.toDataURL("image/png");
+  try {
+    const resp = await fetch(`${window.location.origin}/api/upload-design`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({image:dataUrl})
+    });
+    const json = await resp.json();
+    if(json.url){
+      alert("Design uppladdad! URL: "+json.url);
+      console.log("Design URL:", json.url);
+    } else alert("Fel vid uppladdning!");
+  } catch(e){ alert("Fel: "+e.message); }
+});
+
+drawCanvas();
+</script>
+</body>
+</html>
 
